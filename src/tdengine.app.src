@@ -1,0 +1,7 @@
+{application,tdengine,
+             [{description,"TDengine Client"},
+              {vsn,"git"},
+              {modules,[]},
+              {registered,[tdengine_sup]},
+              {applications,[kernel,stdlib,hackney]},
+              {mod,{tdengine_app,[]}}]}.
