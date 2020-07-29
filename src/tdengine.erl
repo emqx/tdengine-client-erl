@@ -82,7 +82,7 @@ query(Url, Username, Password, SQL) ->
     end.
 
 make_url(Opts) ->
-    Host = case list_to_binary(proplists:get_value(host, Opts, "127.0.0.1")) of
+    Host = case proplists:get_value(host, Opts, <<"127.0.0.1">>) of
         <<"http://", Host0/binary>> -> binary_to_list(Host0);
         <<"https://", Host0/binary>> -> binary_to_list(Host0);
         Host0 -> binary_to_list(Host0)
