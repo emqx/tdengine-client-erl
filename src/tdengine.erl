@@ -20,7 +20,7 @@
         , code_change/3
         ]).
 
--record(state, {url, username, password}).
+-record(state, {url, username, password, pool}).
 
 %% API.
 -spec start_link() -> {ok, pid()}.
@@ -40,11 +40,15 @@ insert(Pid, SQL, Opts) ->
 init([Opts]) ->
     State = #state{url = make_url(Opts),
                    username = proplists:get_value(username, Opts, ""),
-                   password =  proplists:get_value(password, Opts, "")},
+                   password =  proplists:get_value(password, Opts, ""),
+                   pool = proplists:get_value(pool, Opts, default)},
     {ok, State}.
 
-handle_call({insert, SQL, _Opts}, _From, State = #state{url = Url, username = Username, password =  Password}) ->
-    Reply = query(Url, Username, Password, SQL),
+handle_call({insert, SQL, _Opts}, _From, State = #state{url = Url,
+                                                        username = Username,
+                                                        password =  Password,
+                                                        pool = Pool}) ->
+    Reply = query(Pool, Url, Username, Password, SQL),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -62,10 +66,10 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-query(Url, Username, Password, SQL) ->
+query(Pool, Url, Username, Password, SQL) ->
     Token = base64:encode(<<Username/binary, ":", Password/binary>>),
     Headers = [{<<"Authorization">>, <<"Basic ", Token/binary>>}],
-    Options = [{pool, default},
+    Options = [{pool, Pool},
                {connect_timeout, 10000},
                {recv_timeout, 30000},
                {follow_redirectm, true},
