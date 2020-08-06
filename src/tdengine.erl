@@ -91,7 +91,7 @@ make_url(Opts) ->
         <<"https://", Host0/binary>> -> binary_to_list(Host0);
         Host0 -> binary_to_list(Host0)
     end,
-    Port = integer_to_list(proplists:get_value(port, Opts, 6020)),
+    Port = integer_to_list(proplists:get_value(port, Opts, 6041)),
     Scheme = case proplists:get_value(https_enabled, Opts, false) of
                 true -> "https://";
                 false -> "http://"
