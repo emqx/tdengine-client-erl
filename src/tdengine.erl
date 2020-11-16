@@ -22,6 +22,8 @@
 
 -record(state, {url, username, password, pool}).
 
+-define(DEFAULT_CALL_TIMEOUT, 30000).
+
 %% API.
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -34,7 +36,8 @@ stop(Pid) ->
     gen_server:stop(Pid).
 
 insert(Pid, SQL, Opts) ->
-    gen_server:call(Pid, {insert, SQL, Opts}).
+    Timeout = proplists:get_value(call_timeout, Opts, ?DEFAULT_CALL_TIMEOUT),
+    gen_server:call(Pid, {insert, SQL, Opts}, Timeout + 1000).
 
 %% gen_server.
 init([Opts]) ->
@@ -44,11 +47,12 @@ init([Opts]) ->
                    pool = proplists:get_value(pool, Opts, default)},
     {ok, State}.
 
-handle_call({insert, SQL, _Opts}, _From, State = #state{url = Url,
-                                                        username = Username,
-                                                        password =  Password,
-                                                        pool = Pool}) ->
-    Reply = query(Pool, Url, Username, Password, SQL),
+handle_call({insert, SQL, Opts}, _From, State = #state{url = Url,
+                                                       username = Username,
+                                                       password =  Password,
+                                                       pool = Pool}) ->
+    Timeout = proplists:get_value(call_timeout, Opts, ?DEFAULT_CALL_TIMEOUT),
+    Reply = query(Pool, Url, Username, Password, SQL, Timeout),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -66,12 +70,12 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-query(Pool, Url, Username, Password, SQL) ->
+query(Pool, Url, Username, Password, SQL, Timeout) ->
     Token = base64:encode(<<Username/binary, ":", Password/binary>>),
     Headers = [{<<"Authorization">>, <<"Basic ", Token/binary>>}],
     Options = [{pool, Pool},
                {connect_timeout, 10000},
-               {recv_timeout, 30000},
+               {recv_timeout, Timeout},
                {follow_redirectm, true},
                {max_redirect, 5},
                with_body],
