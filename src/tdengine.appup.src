@@ -1,0 +1,5 @@
+{VSN,
+  [{<<".*">>,
+    [{load_module,tdengine,brutal_purge,soft_purge,[]}]}],
+  [{<<".*">>,
+    [{load_module,tdengine,brutal_purge,soft_purge,[]}]}]}.

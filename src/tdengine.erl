@@ -38,10 +38,19 @@ insert(Pid, SQL, Opts) ->
 
 %% gen_server.
 init([Opts]) ->
+    %% hackney_pool impl. has bottlenck on pool
+    %% worker selection (checkin/checkout) via single gen_server process. with
+    %% many tdengine workers calling the pool process will easily build up a queue
+    %% causing long blocking on the worker side that delays the handling of the
+    %% caller.
+    %% Here we have a connection pool per tdengine worker
+    PoolName = {proplists:get_value(pool, Opts, default), self()},
+    hackney_pool:start_pool(PoolName, [{max_connections, 4}]),
     State = #state{url = make_url(Opts),
                    username = proplists:get_value(username, Opts, ""),
                    password =  proplists:get_value(password, Opts, ""),
-                   pool = proplists:get_value(pool, Opts, default)},
+                   pool = PoolName
+                  },
     {ok, State}.
 
 handle_call({insert, SQL, _Opts}, _From, State = #state{url = Url,
