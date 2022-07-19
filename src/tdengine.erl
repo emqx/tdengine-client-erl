@@ -33,8 +33,8 @@ start_link(Opts) ->
 stop(Pid) ->
     gen_server:stop(Pid).
 
-insert(Pid, SQL, Opts) ->
-    gen_server:call(Pid, {insert, SQL, Opts}).
+insert(Pid, SQL, QueryOpts) ->
+    gen_server:call(Pid, {insert, SQL, QueryOpts}).
 
 %% gen_server.
 init([Opts]) ->
@@ -53,11 +53,11 @@ init([Opts]) ->
                   },
     {ok, State}.
 
-handle_call({insert, SQL, _Opts}, _From, State = #state{url = Url,
+handle_call({insert, SQL, QueryOpts}, _From, State = #state{url = Url,
                                                         username = Username,
                                                         password =  Password,
                                                         pool = Pool}) ->
-    Reply = query(Pool, Url, Username, Password, SQL),
+    Reply = query(Pool, Url, Username, Password, SQL, QueryOpts),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -75,7 +75,8 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-query(Pool, Url, Username, Password, SQL) ->
+query(Pool, Url, Username, Password, SQL, QueryOpts) ->
+    Url1 = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
     Token = base64:encode(<<Username/binary, ":", Password/binary>>),
     Headers = [{<<"Authorization">>, <<"Basic ", Token/binary>>}],
     Options = [{pool, Pool},
@@ -84,7 +85,7 @@ query(Pool, Url, Username, Password, SQL) ->
                {follow_redirectm, true},
                {max_redirect, 5},
                with_body],
-    case hackney:request(post, Url, Headers, SQL, Options) of
+    case hackney:request(post, Url1, Headers, SQL, Options) of
         {ok, StatusCode, _Headers, ResponseBody}
           when StatusCode =:= 200 orelse StatusCode =:= 204 ->
             {ok, StatusCode, ResponseBody};
@@ -106,3 +107,13 @@ make_url(Opts) ->
                 false -> "http://"
             end,
     Scheme ++ Host ++ ":" ++ Port ++ "/rest/sql".
+
+maybe_append_dbname(URL, <<"">>) ->
+    str(URL);
+maybe_append_dbname(URL, DBName) ->
+    str(URL) ++ "/" ++ str(DBName).
+
+str(S) when is_binary(S) ->
+    binary_to_list(S);
+str(S) when is_list(S) ->
+    S.
