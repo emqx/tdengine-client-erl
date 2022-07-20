@@ -3,5 +3,5 @@
               {vsn,"git"},
               {modules,[]},
               {registered,[tdengine_sup]},
-              {applications,[kernel,stdlib,hackney]},
+              {applications,[kernel,stdlib,hackney,jsx]},
               {mod,{tdengine_app,[]}}]}.
