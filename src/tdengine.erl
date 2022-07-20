@@ -88,9 +88,15 @@ query(Pool, Url, Username, Password, SQL, QueryOpts) ->
     case hackney:request(post, Url1, Headers, SQL, Options) of
         {ok, StatusCode, _Headers, ResponseBody}
           when StatusCode =:= 200 orelse StatusCode =:= 204 ->
-            {ok, StatusCode, ResponseBody};
+            ResponseMap = jsx:decode(ResponseBody),
+            case ResponseMap of
+                #{<<"status">> := <<"succ">>} ->
+                    {ok, ResponseMap};
+                _ ->
+                    {error, ResponseMap}
+            end;
         {ok, StatusCode, _Headers, ResponseBody} ->
-            {error, {StatusCode, ResponseBody}};
+            {error, {StatusCode, jsx:decode(ResponseBody)}};
         {error, Reason} ->
             {error, Reason}
     end.
