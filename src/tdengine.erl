@@ -57,7 +57,7 @@ handle_call({insert, SQL, QueryOpts}, _From, State = #state{url = Url,
                                                         username = Username,
                                                         password =  Password,
                                                         pool = Pool}) ->
-    Reply = query(Pool, Url, Username, Password, SQL, QueryOpts),
+    Reply = query(Pool, Url, Username, Password, SQL, QueryOpts, undefined, 3),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -74,6 +74,15 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+query(_Pool, _Url, _Username, _Password, _SQL, _QueryOpts, Error, 0) -> Error;
+query(Pool, Url, Username, Password, SQL, QueryOpts, _LastError, Retry) ->
+    case query(Pool, Url, Username, Password, SQL, QueryOpts) of
+        {error, _Reason} = Error ->
+            query(Pool, Url, Username, Password, SQL, QueryOpts, Error, Retry - 1);
+        Reply ->
+            Reply
+    end.
 
 query(Pool, Url, Username, Password, SQL, QueryOpts) ->
     Url1 = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
