@@ -99,7 +99,11 @@ query(Pool, Url, Username, Password, SQL, QueryOpts) ->
           when StatusCode =:= 200 orelse StatusCode =:= 204 ->
             ResponseMap = jsx:decode(ResponseBody, [return_maps]),
             case ResponseMap of
+                %% Compatible with TDengine 2.x returns
                 #{<<"status">> := <<"succ">>} ->
+                    {ok, ResponseMap};
+                %% Compatible with TDengine 3.x returns
+                #{<<"code">> := 0} ->
                     {ok, ResponseMap};
                 _ ->
                     {error, ResponseMap}
