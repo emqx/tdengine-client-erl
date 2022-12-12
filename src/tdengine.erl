@@ -9,6 +9,7 @@
         ]).
 
 -export ([ insert/3
+         , insert/4
          ]).
 
 %% gen_server.
@@ -34,7 +35,10 @@ stop(Pid) ->
     gen_server:stop(Pid).
 
 insert(Pid, SQL, QueryOpts) ->
-    gen_server:call(Pid, {insert, SQL, QueryOpts}).
+    insert(Pid, SQL, QueryOpts, infinity).
+
+insert(Pid, SQL, QueryOpts, CallTimeout) ->
+    gen_server:call(Pid, {insert, SQL, QueryOpts}, CallTimeout).
 
 %% gen_server.
 init([Opts]) ->
