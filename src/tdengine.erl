@@ -19,6 +19,8 @@
         , handle_info/2
         , terminate/2
         , code_change/3
+        , format_status/1
+        , format_status/2
         ]).
 
 -record(state, {url, username, password, pool}).
@@ -78,6 +80,12 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+format_status(#{state := State} = Status) ->
+    Status#{state := State#state{password = <<"******">>}}.
+
+format_status(_Opt, [_PDict, State]) ->
+    [{data, [{"State", State#state{password = <<"******">>}}]}].
 
 query(_Pool, _Url, _Username, _Password, _SQL, _QueryOpts, Error, 0) -> Error;
 query(Pool, Url, Username, Password, SQL, QueryOpts, _LastError, Retry) ->
