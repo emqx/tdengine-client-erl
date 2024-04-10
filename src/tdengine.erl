@@ -109,19 +109,23 @@ query(Pool, Url, Username, Password, SQL, QueryOpts) ->
     case hackney:request(post, Url1, Headers, SQL, Options) of
         {ok, StatusCode, _Headers, ResponseBody}
           when StatusCode =:= 200 orelse StatusCode =:= 204 ->
-            ResponseMap = jsx:decode(ResponseBody, [return_maps]),
-            case ResponseMap of
+            try
+                jsx:decode(ResponseBody, [return_maps])
+            of
                 %% Compatible with TDengine 2.x returns
-                #{<<"status">> := <<"succ">>} ->
+                #{<<"status">> := <<"succ">>} = ResponseMap ->
                     {ok, ResponseMap};
                 %% Compatible with TDengine 3.x returns
-                #{<<"code">> := 0} ->
+                #{<<"code">> := 0} = ResponseMap ->
                     {ok, ResponseMap};
-                _ ->
+                ResponseMap ->
                     {error, ResponseMap}
+            catch
+                error:badarg ->
+                    {error, {invalid_json, ResponseBody}}
             end;
         {ok, StatusCode, _Headers, ResponseBody} ->
-            {error, {StatusCode, jsx:decode(ResponseBody, [return_maps])}};
+            {error, {StatusCode, ResponseBody}};
         {error, Reason} ->
             {error, Reason}
     end.
