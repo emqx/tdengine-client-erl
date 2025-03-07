@@ -23,7 +23,7 @@
         , format_status/2
         ]).
 
--record(state, {url, username, password, pool}).
+-record(state, {url, username, password, token, pool}).
 
 %% API.
 -spec start_link() -> {ok, pid()}.
@@ -54,16 +54,18 @@ init([Opts]) ->
     hackney_pool:start_pool(PoolName, [{max_connections, 4}]),
     State = #state{url = make_url(Opts),
                    username = proplists:get_value(username, Opts, ""),
-                   password =  proplists:get_value(password, Opts, ""),
+                   password = proplists:get_value(password, Opts, ""),
+                   token = proplists:get_value(token, Opts, ""),
                    pool = PoolName
                   },
     {ok, State}.
 
 handle_call({insert, SQL, QueryOpts}, _From, State = #state{url = Url,
                                                         username = Username,
-                                                        password =  Password,
+                                                        password = Password,
+                                                        token = Token,
                                                         pool = Pool}) ->
-    Reply = query(Pool, Url, Username, Password, SQL, QueryOpts, undefined, 3),
+    Reply = query(Pool, Url, Username, Password, Token, SQL, QueryOpts, undefined, 3),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -87,23 +89,32 @@ format_status(#{state := State} = Status) ->
 format_status(_Opt, [_PDict, State]) ->
     [{data, [{"State", State#state{password = <<"******">>}}]}].
 
-query(_Pool, _Url, _Username, _Password, _SQL, _QueryOpts, Error, 0) -> Error;
-query(Pool, Url, Username, Password, SQL, QueryOpts, _LastError, Retry) ->
-    case query(Pool, Url, Username, Password, SQL, QueryOpts) of
+query(_Pool, _Url, _Username, _Password, _Token, _SQL, _QueryOpts, Error, 0) -> Error;
+query(Pool, Url, Username, Password, Token, SQL, QueryOpts, _LastError, Retry) ->
+    case query(Pool, Url, Username, Password, Token, SQL, QueryOpts) of
         {error, _Reason} = Error ->
-            query(Pool, Url, Username, Password, SQL, QueryOpts, Error, Retry - 1);
+            query(Pool, Url, Username, Password, Token, SQL, QueryOpts, Error, Retry - 1);
         Reply ->
             Reply
     end.
 
-query(Pool, Url, Username, Password, SQL, QueryOpts) ->
-    Url1 = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
-    Token = base64:encode(<<Username/binary, ":", Password/binary>>),
-    Headers = [{<<"Authorization">>, <<"Basic ", Token/binary>>}],
+query(Pool, Url, Username, Password, Token, SQL, QueryOpts) ->
+    BaseUrl = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
+    Url1 = case Token of
+        <<"">> -> BaseUrl;
+        _ -> BaseUrl ++ "?token=" ++ str(Token)
+    end,
+    Headers = case Token of
+        <<"">> ->
+            BasicToken = base64:encode(<<Username/binary, ":", Password/binary>>),
+            [{<<"Authorization">>, <<"Basic ", BasicToken/binary>>}];
+        _ ->
+            []
+    end,
     Options = [{pool, Pool},
                {connect_timeout, 10000},
                {recv_timeout, 30000},
-               {follow_redirectm, true},
+               {follow_redirect, true},
                {max_redirect, 5},
                with_body],
     case hackney:request(post, Url1, Headers, SQL, Options) of
