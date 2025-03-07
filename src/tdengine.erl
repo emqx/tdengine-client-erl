@@ -20,7 +20,6 @@
         , terminate/2
         , code_change/3
         , format_status/1
-        , format_status/2
         ]).
 
 -record(state, {url, username, password, token, pool}).
@@ -84,10 +83,9 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 format_status(#{state := State} = Status) ->
-    Status#{state := State#state{password = <<"******">>}}.
-
-format_status(_Opt, [_PDict, State]) ->
-    [{data, [{"State", State#state{password = <<"******">>}}]}].
+    Status#{state := State#state{password = <<"******">>}};
+format_status(Status) ->
+    Status.
 
 query(_Pool, _Url, _Username, _Password, _Token, _SQL, _QueryOpts, Error, 0) -> Error;
 query(Pool, Url, Username, Password, Token, SQL, QueryOpts, _LastError, Retry) ->
@@ -147,12 +145,15 @@ make_url(Opts) ->
         <<"https://", Host0/binary>> -> binary_to_list(Host0);
         Host0 -> binary_to_list(Host0)
     end,
-    Port = integer_to_list(proplists:get_value(port, Opts, 6041)),
     Scheme = case proplists:get_value(https_enabled, Opts, false) of
                 true -> "https://";
                 false -> "http://"
             end,
-    Scheme ++ Host ++ ":" ++ Port ++ "/rest/sql".
+    Port = case proplists:get_value(port, Opts, undefined) of
+        undefined -> "";
+        PortNum when is_integer(PortNum) -> ":" ++ integer_to_list(PortNum)
+    end,
+    Scheme ++ Host ++ Port ++ "/rest/sql".
 
 maybe_append_dbname(URL, <<"">>) ->
     str(URL);
