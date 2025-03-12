@@ -98,16 +98,13 @@ query(Pool, Url, Username, Password, Token, SQL, QueryOpts, _LastError, Retry) -
 
 query(Pool, Url, Username, Password, Token, SQL, QueryOpts) ->
     BaseUrl = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
-    Url1 = case Token of
-        <<"">> -> BaseUrl;
-        _ -> BaseUrl ++ "?token=" ++ str(Token)
-    end,
-    Headers = case Token of
-        <<"">> ->
+    HasToken = not is_empty_str(Token),
+    {Url1, Headers} = case HasToken of
+        true ->
+            {BaseUrl ++ "?token=" ++ str(Token), []};
+        false ->
             BasicToken = base64:encode(<<Username/binary, ":", Password/binary>>),
-            [{<<"Authorization">>, <<"Basic ", BasicToken/binary>>}];
-        _ ->
-            []
+            {BaseUrl, [{<<"Authorization">>, <<"Basic ", BasicToken/binary>>}]}
     end,
     Options = [{pool, Pool},
                {connect_timeout, 10000},
@@ -164,3 +161,10 @@ str(S) when is_binary(S) ->
     binary_to_list(S);
 str(S) when is_list(S) ->
     S.
+
+is_empty_str(undefined) ->
+    true;
+is_empty_str(S) when is_binary(S) ->
+    S =:= <<>>;
+is_empty_str(S) when is_list(S) ->
+    S =:= [].
