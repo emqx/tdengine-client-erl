@@ -130,6 +130,8 @@ query(Pool, Url, Username, Password, Token, SQL, QueryOpts) ->
                 error:badarg ->
                     {error, {invalid_json, ResponseBody}}
             end;
+        {ok, StatusCode, _Headers, <<>>} ->
+            {error, format_error_msg(StatusCode)};
         {ok, StatusCode, _Headers, ResponseBody} ->
             {error, {StatusCode, ResponseBody}};
         {error, Reason} ->
@@ -168,3 +170,15 @@ is_empty_str(S) when is_binary(S) ->
     S =:= <<>>;
 is_empty_str(S) when is_list(S) ->
     S =:= [].
+
+format_error_msg(StatusCode) ->
+    %% ref: https://docs.tdengine.com/cloud/programming/client-libraries/rest-api/
+    Msg = case StatusCode of
+        400 -> <<"Parameter error">>;
+        401 -> <<"Authentication failure">>;
+        404 -> <<"Interface not found">>;
+        500 -> <<"Internal error">>;
+        503 -> <<"Insufficient system resources">>;
+        _ -> <<"Unknown error">>
+    end,
+    {StatusCode, Msg}.
