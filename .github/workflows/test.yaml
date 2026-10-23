@@ -1,0 +1,53 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: false
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: setup-beam
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          otp-version: '28'
+          rebar3-version: '3.25.1'
+
+      - run: rebar3 dialyzer
+      - run: rebar3 xref
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      tdengine:
+        image: tdengine/tdengine:3.0.2.4
+        ports:
+          - 6041:6041
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: setup-beam
+        uses: erlef/setup-beam@v1.24.1
+        with:
+          otp-version: '28'
+          rebar3-version: '3.25.1'
+
+      - run: rebar3 eunit
+      - run: rebar3 ct --readable=true
+        env:
+          TDENGINE_SERVER: localhost:6041
