@@ -22,7 +22,7 @@
         , format_status/1
         ]).
 
--record(state, {url, username, password, token, pool}).
+-record(state, {url, username, password, token, pool, ssl_opts}).
 
 %% API.
 -spec start_link() -> {ok, pid()}.
@@ -50,21 +50,21 @@ init([Opts]) ->
     %% caller.
     %% Here we have a connection pool per tdengine worker
     PoolName = {proplists:get_value(pool, Opts, default), self()},
+    SSLOpts = proplists:get_value(ssl_opts, Opts, []),
     hackney_pool:start_pool(PoolName, [{max_connections, 4}]),
     State = #state{url = make_url(Opts),
                    username = proplists:get_value(username, Opts, ""),
                    password = proplists:get_value(password, Opts, ""),
                    token = proplists:get_value(token, Opts, ""),
-                   pool = PoolName
+                   pool = PoolName,
+                   ssl_opts = SSLOpts
                   },
     {ok, State}.
 
-handle_call({insert, SQL, QueryOpts}, _From, State = #state{url = Url,
-                                                        username = Username,
-                                                        password = Password,
-                                                        token = Token,
-                                                        pool = Pool}) ->
-    Reply = query(Pool, Url, Username, Password, Token, SQL, QueryOpts, undefined, 3),
+handle_call({insert, SQL, QueryOpts}, _From, State) ->
+    Error = undefined,
+    Retries = 3,
+    Reply = do_query(State, SQL, QueryOpts, Error, Retries),
     {reply, Reply, State};
 
 handle_call(_Request, _From, State) ->
@@ -87,16 +87,25 @@ format_status(#{state := State} = Status) ->
 format_status(Status) ->
     Status.
 
-query(_Pool, _Url, _Username, _Password, _Token, _SQL, _QueryOpts, Error, 0) -> Error;
-query(Pool, Url, Username, Password, Token, SQL, QueryOpts, _LastError, Retry) ->
-    case query(Pool, Url, Username, Password, Token, SQL, QueryOpts) of
+do_query(_State, _SQL, _QueryOpts, Error, 0) ->
+    Error;
+do_query(State, SQL, QueryOpts, _LastError, Retry) ->
+    case do_query1(State, SQL, QueryOpts) of
         {error, _Reason} = Error ->
-            query(Pool, Url, Username, Password, Token, SQL, QueryOpts, Error, Retry - 1);
+            do_query(State, SQL, QueryOpts, Error, Retry - 1);
         Reply ->
             Reply
     end.
 
-query(Pool, Url, Username, Password, Token, SQL, QueryOpts) ->
+do_query1(State, SQL, QueryOpts) ->
+    #state{
+       url = Url,
+       username = Username,
+       password = Password,
+       token = Token,
+       pool = Pool,
+       ssl_opts = SSLOpts
+    } = State,
     BaseUrl = maybe_append_dbname(Url, proplists:get_value(db_name, QueryOpts, <<"">>)),
     HasToken = not is_empty_str(Token),
     {Url1, Headers} = case HasToken of
@@ -111,6 +120,7 @@ query(Pool, Url, Username, Password, Token, SQL, QueryOpts) ->
                {recv_timeout, 30000},
                {follow_redirect, true},
                {max_redirect, 5},
+               {ssl_options, SSLOpts},
                with_body],
     case hackney:request(post, Url1, Headers, SQL, Options) of
         {ok, StatusCode, _Headers, ResponseBody}
