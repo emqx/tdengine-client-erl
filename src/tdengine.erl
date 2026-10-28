@@ -83,9 +83,20 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 format_status(#{state := State} = Status) ->
-    Status#{state := State#state{password = <<"******">>}};
+    SSLOpts = redact_ssl_opts(State#state.ssl_opts),
+    Status#{state := State#state{password = <<"******">>, ssl_opts = SSLOpts}};
 format_status(Status) ->
     Status.
+
+redact_ssl_opts(SSLOpts0) ->
+    lists:map(
+      fun({password, _}) ->
+              {password, <<"******">>};
+         (X) ->
+              X
+      end,
+      SSLOpts0
+     ).
 
 do_query(_State, _SQL, _QueryOpts, Error, 0) ->
     Error;
